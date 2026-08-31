@@ -1,19 +1,16 @@
-
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, BotCommand
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove, BotCommand
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 # تفعيل الـ Logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 # ==================== CONFIG & DATABASE ====================
-TOKEN = "8671890016:AAE8BHBQh-90oqVvtom2UlMLnCLHl19DLkY"
-ADMIN_ID = 6605879863  # ⚠️ حط الـ Telegram ID متاعك هنا باش تنجم تزيد الـ Keys
+TOKEN = "YOUR_BOT_TOKEN_HERE"
+ADMIN_ID = 123456789  # ⚠️ حط الـ Telegram ID متاعك هنا
 
 # مخزن المفاتيح (Stock الديناميكي)
-STOCK_DB = {
-    # الهيكل: "plan_id": ["KEY1", "KEY2", ...]
-}
+STOCK_DB = {}
 
 USER_BALANCES = {}
 
@@ -27,7 +24,7 @@ ALL_PRODUCTS = [
     ("hex_blade", "🛒 Hex Blade Root"),
     ("hg_cheat", "🛒 Hg Cheat ApkMod"),
     ("migul_pro", "🛒 Migul Pro iOS"),
-    ("pato_or lo ange", "🛒 Pato Team Orange Apkmod"),
+    ("pato_orange", "🛒 Pato Team Orange Apkmod"),
     ("rapid_core", "🔑 Rapid Core Root"),
     ("silentcheats", "🛒 SilentCheats ApkMod"),
     ("silentcheat_brutal", "🛒 SilentCheat Root Brutal"),
@@ -105,8 +102,10 @@ def get_main_text(user_name):
 # ==================== HANDLERS ====================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.set_my_commands([BotCommand("start", "Open shop")])
-    reply_kb = ReplyKeyboardMarkup([["🛒 Open shop"]], resize_keyboard=True)
-    await update.message.reply_text("Welcome!", reply_markup=reply_kb)
+    
+    # تنحية الزر العريض اللوطاني نهائياً
+    remove_msg = await update.message.reply_text("Loading...", reply_markup=ReplyKeyboardRemove())
+    await remove_msg.delete()
 
     await update.message.reply_text(
         text=get_main_text(update.effective_user.first_name),
@@ -114,7 +113,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=get_main_menu_keyboard()
     )
 
-# --- أمر للأدمين لإضافة الـ Keys ---
+# أمر الأدمين لإضافة الـ Keys
 async def add_key_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
@@ -133,7 +132,7 @@ async def add_key_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     count = len(STOCK_DB[plan_id])
     await update.message.reply_text(f"✅ تم إضافة المفتاح لـ `{plan_id}`!\nالـ Stock الحالي: **{count}**", parse_mode="Markdown")
 
-# --- إدارة الأزرار ---
+# إدارة الأزرار
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -180,7 +179,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keys_available = STOCK_DB.get(plan["id"], [])
             stock_count = len(keys_available)
             
-            # تحديد العلامة ونص الـ Stock بناءً على العدد
+            # تعديل العلامة والـ Stock الديناميكي
             if stock_count > 0:
                 status_icon = "✅"
                 stock_str = f"{stock_count} Available"
@@ -202,7 +201,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard.append([InlineKeyboardButton("🛒 All Products", callback_data="all_products")])
 
         await query.edit_message_text(text=text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
-        
+
     elif data.startswith("buy_"):
         plan_id = data.replace("buy_", "")
         keys = STOCK_DB.get(plan_id, [])
@@ -254,20 +253,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         await query.edit_message_text(text=text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.text == "🛒 Open shop":
-        await update.message.reply_text(
-            text=get_main_text(update.effective_user.first_name),
-            parse_mode="Markdown",
-            reply_markup=get_main_menu_keyboard()
-        )
-
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("addkey", add_key_cmd))
     app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
     logging.info("Bot is running...")
     app.run_polling()
