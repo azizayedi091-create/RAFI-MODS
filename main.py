@@ -9,7 +9,7 @@ from telegram.ext import (
 # ---------------------------------------------------------
 # CONFIGURATION
 # ---------------------------------------------------------
-BOT_TOKEN = "8671890016:AAEcHKPQE4tYhk0AGAFRszFrkH4ZcT8flYw"  # تحط التوكين متاعك هنا أو في Render
+BOT_TOKEN = "8671890016:AAE8BHBQh-90oqVvtom2UlMLnCLHl19DLkY"  # تحط التوكين متاعك هنا أو في Render
 ADMIN_ID = 6605879863
 
 logging.basicConfig(
