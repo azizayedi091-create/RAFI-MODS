@@ -172,24 +172,26 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
         })
 
-        # التنسيق الجديد كينما طلبت بالضبط
         text = f"🛒 **{prod_info['name']}**\n\n📊 **PLANS & PRICING:**\n\n"
         keyboard = []
 
         for plan in prod_info["plans"]:
             keys_available = STOCK_DB.get(plan["id"], [])
             stock_count = len(keys_available)
-            stock_str = f"{stock_count} Available" if stock_count > 0 else "In Stock"
+            
+            # التعديل هنا: إذا 0 تكتب Out of Stock وإذا أكبر تكتب العدد
+            if stock_count > 0:
+                stock_str = f"{stock_count} Available"
+                btn_label = f"🛒 Buy {plan['name']} - ${plan['price']:.2f}"
+            else:
+                stock_str = "Out of Stock"
+                btn_label = f"🛒 Buy {plan['name']} - ${plan['price']:.2f} (Out of Stock)"
 
             text += (
                 f"✅ **{plan['name']}**\n"
                 f"➠ 📦 **Stock:** {stock_str}\n"
                 f"➠ 💰 **Price:** ${plan['price']:.2f}\n\n"
             )
-
-            btn_label = f"🛒 Buy {plan['name']} - ${plan['price']:.2f}"
-            if stock_count == 0:
-                btn_label += " (Out of Stock)"
 
             keyboard.append([InlineKeyboardButton(btn_label, callback_data=f"buy_{plan['id']}")])
         
