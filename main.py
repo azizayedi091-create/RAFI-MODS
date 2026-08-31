@@ -11,9 +11,9 @@ from telegram.ext import (
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 # ==================== CONFIG & DATABASE ====================
-TOKEN = "YOUR_BOT_TOKEN_HERE"
+TOKEN = "8671890016:AAE8BHBQh-90oqVvtom2UlMLnCLHl19DLkY"
 ADMIN_ID = 123456789  # ⚠️ حط الـ Telegram ID متاعك هنا
-MY_BINANCE_PAY_ID = "1258086568"
+MY_BINANCE_PAY_ID = "6605879863"
 
 # حالات المحادثة لإدخال Order ID
 WAITING_ORDER_ID = 1
