@@ -8,7 +8,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 # ==================== CONFIG & DATABASE ====================
 TOKEN = "8671890016:AAE8BHBQh-90oqVvtom2UlMLnCLHl19DLkY"
-ADMIN_ID = 123456789  # ⚠️ حط الـ Telegram ID متاعك هنا باش تنجم تزيد الـ Keys
+ADMIN_ID = 6605879863  # ⚠️ حط الـ Telegram ID متاعك هنا باش تنجم تزيد الـ Keys
 
 # مخزن المفاتيح (Stock الديناميكي)
 STOCK_DB = {
