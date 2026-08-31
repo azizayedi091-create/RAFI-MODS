@@ -1,3 +1,4 @@
+
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, BotCommand
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
@@ -26,7 +27,7 @@ ALL_PRODUCTS = [
     ("hex_blade", "🛒 Hex Blade Root"),
     ("hg_cheat", "🛒 Hg Cheat ApkMod"),
     ("migul_pro", "🛒 Migul Pro iOS"),
-    ("pato_orange", "🛒 Pato Team Orange Apkmod"),
+    ("pato_or lo ange", "🛒 Pato Team Orange Apkmod"),
     ("rapid_core", "🔑 Rapid Core Root"),
     ("silentcheats", "🛒 SilentCheats ApkMod"),
     ("silentcheat_brutal", "🛒 SilentCheat Root Brutal"),
@@ -179,16 +180,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keys_available = STOCK_DB.get(plan["id"], [])
             stock_count = len(keys_available)
             
-            # التعديل هنا: إذا 0 تكتب Out of Stock وإذا أكبر تكتب العدد
+            # تحديد العلامة ونص الـ Stock بناءً على العدد
             if stock_count > 0:
+                status_icon = "✅"
                 stock_str = f"{stock_count} Available"
                 btn_label = f"🛒 Buy {plan['name']} - ${plan['price']:.2f}"
             else:
+                status_icon = "❌"
                 stock_str = "Out of Stock"
                 btn_label = f"🛒 Buy {plan['name']} - ${plan['price']:.2f} (Out of Stock)"
 
             text += (
-                f"✅ **{plan['name']}**\n"
+                f"{status_icon} **{plan['name']}**\n"
                 f"➠ 📦 **Stock:** {stock_str}\n"
                 f"➠ 💰 **Price:** ${plan['price']:.2f}\n\n"
             )
@@ -199,7 +202,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard.append([InlineKeyboardButton("🛒 All Products", callback_data="all_products")])
 
         await query.edit_message_text(text=text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
-
+        
     elif data.startswith("buy_"):
         plan_id = data.replace("buy_", "")
         keys = STOCK_DB.get(plan_id, [])
