@@ -1,17 +1,28 @@
 import logging
+import random
+import string
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove, BotCommand
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import (
+    Application, CommandHandler, CallbackQueryHandler, MessageHandler, 
+    filters, ContextTypes, ConversationHandler
+)
 
 # تفعيل الـ Logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 # ==================== CONFIG & DATABASE ====================
-TOKEN = "8671890016:AAE8BHBQh-90oqVvtom2UlMLnCLHl19DLkY"
-ADMIN_ID = 6605879863  # ⚠️ حط الـ Telegram ID متاعك هنا
+TOKEN = "YOUR_BOT_TOKEN_HERE"
+ADMIN_ID = 123456789  # ⚠️ حط الـ Telegram ID متاعك هنا
+MY_BINANCE_PAY_ID = "1258086568"
+
+# حالات المحادثة لإدخال Order ID
+WAITING_ORDER_ID = 1
+
+# مخزن البيانات الوقتية للمشتريات
+PENDING_ORDERS = {}  # {user_id: {"plan_id": ..., "order_id": ..., "amount": ...}}
 
 # مخزن المفاتيح (Stock الديناميكي)
 STOCK_DB = {}
-
 USER_BALANCES = {}
 
 # قائمة الـ 21 منتج
@@ -39,10 +50,9 @@ ALL_PRODUCTS = [
     ("hg_prime", "🛒 Hg Cheat Prime Proxy")
 ]
 
-# بيانات المنتجات والخطط
 PRODUCTS_DATA = {
     "unseen_mods": {
-        "name": "UNSEEN MODS ROOT",
+        "name": "Unseen Mods Root",
         "plans": [
             {"id": "unseen_1d", "name": "1 Day", "price": 0.50},
             {"id": "unseen_3d", "name": "3 Day", "price": 2.00},
@@ -50,7 +60,7 @@ PRODUCTS_DATA = {
         ]
     },
     "bala_mod": {
-        "name": "BALA MOD ANDROID [NON ROOT]",
+        "name": "Bala Mod Android [Non Root]",
         "plans": [
             {"id": "bala_1h", "name": "1 Hours", "price": 0.20},
             {"id": "bala_3h", "name": "3 Hours", "price": 0.60},
@@ -61,8 +71,19 @@ PRODUCTS_DATA = {
             {"id": "bala_72h", "name": "72 Hours (3 Day)", "price": 8.50},
             {"id": "bala_168h", "name": "168 Hours (7 Day)", "price": 20.00},
         ]
+    },
+    "guild_glory": {
+        "name": "Guild Glory Bot",
+        "plans": [
+            {"id": "guild_1b", "name": "1 Besic 4 Bot", "price": 1.20},
+            {"id": "guild_7d", "name": "7 Day", "price": 5.00}
+        ]
     }
 }
+
+# توليد Order ID عشوائي
+def generate_order_code():
+    return "ORD" + ''.join(random.choices(string.ascii_uppercase + string.digits, k=12))
 
 # ==================== HELPERS ====================
 def get_main_menu_keyboard():
@@ -103,7 +124,6 @@ def get_main_text(user_name):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.set_my_commands([BotCommand("start", "Open shop")])
     
-    # تنحية الزر العريض اللوطاني نهائياً
     remove_msg = await update.message.reply_text("Loading...", reply_markup=ReplyKeyboardRemove())
     await remove_msg.delete()
 
@@ -112,8 +132,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
         reply_markup=get_main_menu_keyboard()
     )
+    return ConversationHandler.END
 
-# أمر الأدمين لإضافة الـ Keys
 async def add_key_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
@@ -129,10 +149,8 @@ async def add_key_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         STOCK_DB[plan_id] = []
 
     STOCK_DB[plan_id].append(key_val)
-    count = len(STOCK_DB[plan_id])
-    await update.message.reply_text(f"✅ تم إضافة المفتاح لـ `{plan_id}`!\nالـ Stock الحالي: **{count}**", parse_mode="Markdown")
+    await update.message.reply_text(f"✅ تم إضافة المفتاح لـ `{plan_id}`!\nالـ Stock الحالي: **{len(STOCK_DB[plan_id])}**", parse_mode="Markdown")
 
-# إدارة الأزرار
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -146,6 +164,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown",
             reply_markup=get_main_menu_keyboard()
         )
+        return ConversationHandler.END
 
     elif data in ["shop_now", "all_products"]:
         text = (
@@ -158,28 +177,28 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "_Tap any product to see options._"
         )
         keyboard = [[InlineKeyboardButton(p_name, callback_data=f"prod_{p_id}")] for p_id, p_name in ALL_PRODUCTS]
-        keyboard.append([InlineKeyboardButton("🔙 Go Back", callback_data="main_menu")])
+        keyboard.append([InlineKeyboardButton("🏠 Go Back", callback_data="main_menu")])
 
         await query.edit_message_text(text=text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        return ConversationHandler.END
 
     elif data.startswith("prod_"):
         prod_key = data.replace("prod_", "")
         prod_info = PRODUCTS_DATA.get(prod_key, {
-            "name": prod_key.replace("_", " ").upper(),
+            "name": prod_key.replace("_", " ").title(),
             "plans": [
                 {"id": f"{prod_key}_1d", "name": "1 Day", "price": 1.00},
                 {"id": f"{prod_key}_7d", "name": "7 Day", "price": 5.00}
             ]
         })
 
-        text = f"🛒 **{prod_info['name']}**\n\n📊 **PLANS & PRICING:**\n\n"
+        text = f"🛒 **{prod_info['name'].upper()}**\n\n📊 **PLANS & PRICING:**\n\n"
         keyboard = []
 
         for plan in prod_info["plans"]:
             keys_available = STOCK_DB.get(plan["id"], [])
             stock_count = len(keys_available)
             
-            # تعديل العلامة والـ Stock الديناميكي
             if stock_count > 0:
                 status_icon = "✅"
                 stock_str = f"{stock_count} Available"
@@ -195,68 +214,191 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"➠ 💰 **Price:** ${plan['price']:.2f}\n\n"
             )
 
-            keyboard.append([InlineKeyboardButton(btn_label, callback_data=f"buy_{plan['id']}")])
+            keyboard.append([InlineKeyboardButton(btn_label, callback_data=f"selectplan_{prod_key}_{plan['id']}")])
         
         text += "🎯 **CHOOSE A PLAN:**\n━━━━━━━━━━━━━━━━━━━━"
         keyboard.append([InlineKeyboardButton("🛒 All Products", callback_data="all_products")])
 
         await query.edit_message_text(text=text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        return ConversationHandler.END
 
-    elif data.startswith("buy_"):
-        plan_id = data.replace("buy_", "")
+    # 1️⃣ صفحة CHECKOUT SUMMARY (التنسيق في الصورة الأولى)
+    elif data.startswith("selectplan_"):
+        _, prod_key, plan_id = data.split("_", 2)
+        prod_info = PRODUCTS_DATA.get(prod_key, {"name": prod_key.title()})
+        
+        plan_name = "1 Day"
+        price = 1.00
+        if "plans" in prod_info:
+            for p in prod_info["plans"]:
+                if p["id"] == plan_id:
+                    plan_name = p["name"]
+                    price = p["price"]
+                    break
+
+        text = (
+            "📋 **CHECKOUT SUMMARY**\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"➠ 🔑 **Product:** 🏪 {prod_info['name']}\n"
+            f"➠ 🔑 **Plan:** {plan_name}\n"
+            f"➠ 📋 **Quantity:** 1\n"
+            f"➠ 💰 **Unit price:** ${price:.2f} USD\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"💰 **Final Total: ${price:.2f} USD**\n\n"
+            "👇 **Pick how you want to pay**\n"
+            "_Pick any option below — each button shows the exact amount in that currency. If you have wallet balance, you can pay instantly with it._"
+        )
+
+        keyboard = [
+            [InlineKeyboardButton(f"💸 Binance Pay — ${price:.2f} USDT", callback_data=f"binancepay_{plan_id}_{price:.2f}")],
+            [InlineKeyboardButton("🎡 Apply Coupon Code", callback_data="coupon")],
+            [InlineKeyboardButton("🏠 All Plans", callback_data=f"prod_{prod_key}")]
+        ]
+
+        await query.edit_message_text(text=text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        return ConversationHandler.END
+
+    # 2️⃣ صفحة BINANCE PAY (التنسيق في الصورة الثانية)
+    elif data.startswith("binancepay_"):
+        _, plan_id, price_str = data.split("_", 2)
+        order_code = generate_order_code()
+
+        PENDING_ORDERS[user_id] = {
+            "plan_id": plan_id,
+            "order_code": order_code,
+            "amount": price_str
+        }
+
+        text = (
+            "⚠️ **BINANCE PAY** · 💸 *Auto-verified*\n"
+            f"➠ 💰 **Amount: ${price_str} USDT**\n"
+            f"➠ 🔒 **Order: {order_code}**\n"
+            f"➠ 💰 **Pay ID: {MY_BINANCE_PAY_ID}**\n"
+            "➠ ⏰ **Expires in: 5:00**\n\n"
+            "ℹ️ **Steps**\n"
+            "➠ 1️⃣ Open Binance app ➔ **Pay** ➔ **Send**\n"
+            f"➠ 2️⃣ **Enter Pay ID: {MY_BINANCE_PAY_ID}**\n"
+            f"➠ 3️⃣ Send **exactly ${price_str} USDT**\n"
+            "➠ 4️⃣ Tap below and send your **Binance Order ID**\n\n"
+            "⚠️ *This payment expires in 5 minutes.*"
+        )
+
+        keyboard = [
+            [InlineKeyboardButton("📝 I Paid — Submit Order ID", callback_data="submit_order_id")],
+            [InlineKeyboardButton("🏠 Go Back", callback_data="main_menu")]
+        ]
+
+        await query.edit_message_text(text=text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        return ConversationHandler.END
+
+    elif data == "submit_order_id":
+        order_info = PENDING_ORDERS.get(user_id)
+        if not order_info:
+            await query.answer("❌ لا يوجد طلب معلق حالياً!", show_alert=True)
+            return ConversationHandler.END
+
+        order_code = order_info["order_code"]
+        await query.message.reply_text(
+            f"⏱ Send your Binance **Order ID** for order\n`{order_code}`:",
+            parse_mode="Markdown"
+        )
+        return WAITING_ORDER_ID
+
+# 3️⃣ استلام الـ Order ID من الحريف (التنسيق في الصورة الثالثة)
+async def receive_order_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    user_name = update.effective_user.first_name
+    tx_id = update.message.text.strip()
+    order_info = PENDING_ORDERS.get(user_id)
+
+    if not order_info:
+        await update.message.reply_text("❌ لم يتم العثور على طلب معلق. يرجى البدء من جديد.")
+        return ConversationHandler.END
+
+    plan_id = order_info["plan_id"]
+    order_code = order_info["order_code"]
+    amount = order_info["amount"]
+
+    # إعلام الحريف بتسلم الطلب
+    await update.message.reply_text(
+        f"✅ **تم إرسال الطلب بنجاح!**\n\n"
+        f"🔒 **Order:** `{order_code}`\n"
+        f"🆔 **Binance Order ID:** `{tx_id}`\n\n"
+        f"⏳ جاري التحقق وتسليم الـ Key أوتوماتيكياً...",
+        parse_mode="Markdown"
+    )
+
+    # إرسال إشعار للأدمين للموافقة أو التثبيت
+    admin_kb = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ Accept & Send Key", callback_data=f"adm_acc_{user_id}_{plan_id}"),
+            InlineKeyboardButton("❌ Reject", callback_data=f"adm_rej_{user_id}")
+        ]
+    ])
+
+    await context.bot.send_message(
+        chat_id=ADMIN_ID,
+        text=(
+            "🚨 **طلب دفع جديد (Binance Pay)**\n\n"
+            f"👤 **المستعمل:** {user_name} (`{user_id}`)\n"
+            f"🛒 **المنتج:** `{plan_id}`\n"
+            f"💰 **المبلغ:** `${amount} USDT`\n"
+            f"🔒 **Order Code:** `{order_code}`\n"
+            f"🆔 **Binance Order ID:** `{tx_id}`"
+        ),
+        parse_mode="Markdown",
+        reply_markup=admin_kb
+    )
+
+    return ConversationHandler.END
+
+# أزرار الأدمين لقبول أو رفض الشراء
+async def admin_decision_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    data = query.data
+
+    if data.startswith("adm_acc_"):
+        _, _, user_id_str, plan_id = data.split("_", 3)
+        target_id = int(user_id_str)
         keys = STOCK_DB.get(plan_id, [])
 
         if not keys:
-            await query.answer("❌ عفواً، هذا المنتج Out of Stock حالياً!", show_alert=True)
+            await query.answer("❌ الـ Stock فارغ لهذا المنتج!", show_alert=True)
             return
 
         key_to_give = keys.pop(0)
-        await query.message.reply_text(
-            f"🎉 **تم الشراء بنجاح!**\n\n🔑 المفتاح الخاص بك:\n`{key_to_give}`",
+
+        # إرسال المفتاح للمشتري
+        await context.bot.send_message(
+            chat_id=target_id,
+            text=f"🎉 **تم تأكيد الدفع بنجاح!**\n\n🔑 **المفتاح الخاص بك:**\n`{key_to_give}`",
             parse_mode="Markdown"
         )
+        await query.edit_message_text(text=query.message.text + "\n\n✅ **تمت الموافقة وإرسال المفتاح.**")
 
-    elif data == "add_balance":
-        bal = USER_BALANCES.get(user_id, 0.0)
-        text = (
-            "💸 **Add Balance**\n\n"
-            f"💸 **Current balance:** ${bal:.2f} USD\n"
-            "🔄 **Min:** $0.50 USD  ·  🔄 **Max:** $1000 USD\n\n"
-            "_Pick an amount below. Local-currency total appears on the gateway button._"
+    elif data.startswith("adm_rej_"):
+        target_id = int(data.split("_")[2])
+        await context.bot.send_message(
+            chat_id=target_id,
+            text="❌ **للأسف، تعذر التحقق من عملية الدفع الخاص بك.** يرجى الاتصال بالدعم إذا كان هناك خطأ."
         )
-        keyboard = [
-            [InlineKeyboardButton("💰 $1 USD", callback_data="pay_1"), InlineKeyboardButton("💰 $2 USD", callback_data="pay_2")],
-            [InlineKeyboardButton("💰 $5 USD", callback_data="pay_5"), InlineKeyboardButton("💰 $10 USD", callback_data="pay_10")],
-            [InlineKeyboardButton("💰 $50 USD", callback_data="pay_50"), InlineKeyboardButton("💰 $100 USD", callback_data="pay_100")],
-            [InlineKeyboardButton("✏️ Custom Amount (USD)", callback_data="pay_custom")],
-            [InlineKeyboardButton("🔙 Go Back", callback_data="main_menu")]
-        ]
-        await query.edit_message_text(text=text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
-
-    elif data.startswith("pay_"):
-        amount_str = data.replace("pay_", "")
-        amount = 100.0 if amount_str == "100" else float(amount_str) if amount_str.isdigit() else 1.0
-        bal = USER_BALANCES.get(user_id, 0.0)
-        after_dep = bal + amount
-
-        text = (
-            "💸 **ADD BALANCE — Step 2 of 2**\n\n"
-            f"💸 **Current balance:** ${bal:.2f} USD\n"
-            f"➕ **Adding:** ${amount:.2f} USD\n"
-            f"✨ **After deposit:** ${after_dep:.2f} USD\n\n"
-            "⚡ **Pick how to fund your wallet**\n"
-            "_Each button shows the amount in the gateway's native currency._"
-        )
-        keyboard = [
-            [InlineKeyboardButton(f"Binance Pay — ${amount:.0f} USDT", callback_data=f"binance_{amount}")],
-            [InlineKeyboardButton("🔙 Back", callback_data="add_balance")]
-        ]
-        await query.edit_message_text(text=text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        await query.edit_message_text(text=query.message.text + "\n\n❌ **تم الرفض.**")
 
 def main():
     app = Application.builder().token(TOKEN).build()
+
+    conv_handler = ConversationHandler(
+        entry_points=[CallbackQueryHandler(button_handler, pattern="^submit_order_id$")],
+        states={
+            WAITING_ORDER_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_order_id)]
+        },
+        fallbacks=[CommandHandler("start", start)]
+    )
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("addkey", add_key_cmd))
+    app.add_handler(conv_handler)
+    app.add_handler(CallbackQueryHandler(admin_decision_handler, pattern="^adm_"))
     app.add_handler(CallbackQueryHandler(button_handler))
 
     logging.info("Bot is running...")
